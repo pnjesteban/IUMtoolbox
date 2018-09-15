@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vf>
+	<Hosts>
+		<Host name="Desarrollo" type="DEV">		
+			<hostname></hostname>
+			<port></port>
+			<IUMInstance></IUMInstance>
+			<username></username>
+			<password></password>
+			<CollectorPrefix></CollectorPrefix>
+			<home></home>
+		</Host>
+
+		<Host name="Produccion" type="PRD">
+			<hostname></hostname>
+			<port></port>
+			<IUMInstance></IUMInstance>
+			<username></username>
+			<password></password>
+			<CollectorPrefix></CollectorPrefix>
+		</Host>		
+		
+	</Hosts>
+	
+	<global>
+		<localWork>work/</localWork>
+		<remoteWork>#{Host.home}/.iumExpWork/</remoteWork>
+	</global>
+	
+	<ConfigMap>
+		<Config name="Encapsulator" className="ium.tools.config.info.ConfigMap">
+			<Path>Encapsulator</Path>
+			<RuleClass>com.hp.siu.collector.encapsulator.RecordEncapsulator</RuleClass>
+			<FileRollPath>/RecordFactory/StreamSource/FileRollPolicy</FileRollPath>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		<Config name="Encapsulator" className="ium.tools.config.info.ConfigMap">
+			<Path>Encapsulator</Path>
+			<RuleClass>*</RuleClass>
+			<FileRollPath>/StreamSource/FileRollPolicy</FileRollPath>			
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		
+		
+		<Config name="FileRollPolicy" className="ium.tools.config.info.ConfigMap">
+			<RuleClass>com.hp.siu.collector.encapsulator.PerlRegexFilePolicy</RuleClass>
+			<Path>@Encapsulator::FileRollPath</Path>
+			<Source>.SrcDir</Source>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+			
+		<Config name="FileRollPolicy" className="ium.tools.config.info.ConfigMap">
+			<RuleClass>*</RuleClass>
+			<Path>@Encapsulator::FileRollPath</Path>
+			<Source>.SrcDir</Source>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		
+	</ConfigMap>
+	
+	<commands>
+		<TextLineCommand name="getConfig" className="ium.tools.console.commands.TextLineCommand">
+			<command>/opt/SIUVOIDEV/bin/saveconfig -f #{1}</command>
+		</TextLineCommand>
+  		<TextLineCommand name="getAdminAgentPid" className="ium.tools.console.commands.TextLineCommand"> 
+ 			<command>ps -C adminagentserver --format pid --no-headers</command>
+ 		</TextLineCommand>
+ 		<TextLineCommand name="getAdminAgentChild" className="ium.tools.console.commands.TextLineCommand">
+ 			<command>ps --ppid `ps -C adminagentserver --format pid --no-headers` --format pid,cmd --no-headers</command>
+ 		</TextLineCommand>
+	</commands>
+	
+	
+	<actions>
+		<!--  Action className="ium.tools.actions.ChainAction" name="LoadRemote" mode="async" scope="private">
+			<Action 
+				className="ium.tools.actions.CommandAction" 
+				name="LoadConfig" 
+				command="getConfig" 
+				param="#{global.remoteWork}all.#{Host.IUMInstance}.config" 
+			/>
+			<Action 
+				className="ium.tools.actions.SCPAction" 
+				name="getFile" 
+				remoteFile="#{global.remoteWork}all.#{Host.IUMInstance}.config" 
+				destination="#{global.localWork}"
+				scope="private"
+			/>
+			<Action 
+				className="ium.tools.actions.LoadLocalFile" 
+				name="IUMConfig" 
+				file="#{global.localWork}all.#{Host.IUMInstance}.config" 
+				mode="nonInteractive"
+			/>
+		</Action>
+		
+		<Action className="ium.tools.actions.ChainAction" name="LoadLocal" mode="sync">
+			<Action 
+				className="ium.tools.actions.LoadLocalFile" 
+				name="IUMConfig" 
+				file="#{global.localWork}all.#{Host.IUMInstance}.config" 
+				mode="nonInteractive"
+			/>
+						
+		</Action>
+		
+		<Action className="ium.tools.actions.ChainAction" name="LoadIUMProccess" mode="sync">			
+			<Action 
+				className="ium.tools.actions.CommandAction" 
+				name="getIUMProccess" 
+				command="getAdminAgentChild"
+			/>
+			<Action 
+				className="ium.tools.actions.FormatAction" 
+				name="IUMProcess"
+				regex="(\d*) (.*) (.*)" 
+				groups="pid|type|collector"
+				input="getIUMProccess"
+			/>
+		</Action  -->
+					
+		<Action 
+			actionClass="ium.toolbox.actions.LoadLocalFile" 
+			name="LoadIUMConfig" 
+			file="work/all.#{@Host.IUMInstance}.config"
+			mode="nonInteractive"
+		/>
+	</actions>
+	
+	
+	<MainPanel>
+		<Panel name="main" title="Main" view="ium.toolbox.view.TabbedView" >
+			
+			<Panel name="Host" title="Host" view="ium.toolbox.view.ContainerView" columns="2" >
+				<Panel name="Buttons" title="Botonera" view="ium.toolbox.view.ContainerView" grabV="false" columns="4" span="2" >
+					<Panel name="host" title="host" view="ium.toolbox.view.InputText" type="combo" input="@CONFIG:Hosts" storeAs="Host" />
+					<Panel name="LoadRemote" title="load" view="ium.toolbox.view.Button" action="LoadIUMConfig" />
+				</Panel>
+				<Panel name="List" title="List" view="ium.toolbox.view.Table" listenTo="Host" layout="fill">
+					<column>name|value</column>
+					<field>@Host.name|@Host.value</field>
+				</Panel>
+				<Panel name="Consola" title="Consola" view="ium.toolbox.view.TextPanel" layout="fill" />
+			</Panel>
+			
+			<Panel name="Config" title="Config" view="ium.toolbox.view.ContainerView" columns="2" >
+				<Panel name="Tree" title="Tree" view="ium.toolbox.view.TreeView" layout="fill" listenTo="LoadIUMConfig" storeAs="RuleSel"/>
+				<Panel name="Consola" title="Consola" view="ium.toolbox.view.TextPanel" layout="fill" listenTo="RuleSel" field="@RuleSel.printNode" mode="replace"/>
+			</Panel>
+			
+			<Panel name="Collectors" title="Collectors" view="ium.toolbox.view.ContainerView" columns="2" >
+				<Panel name="List" title="List" view="ium.toolbox.view.Table" listenTo="LoadIUMConfig" layout="fill">
+					<column>collector|pid</column>
+					<field>@LoadIUMConfig:collectors</field>
+				</Panel>
+			</Panel>
+			
+			<Panel name="NMESchema" title="NMESchema" view="ium.toolbox.view.ContainerView" columns="2" >
+				<Panel name="List" title="List" view="ium.toolbox.view.Table" listenTo="LoadIUMConfig" layout="fill">
+					<column>name|value</column>
+					<field>@LoadIUMConfig:NMESchema.name|@LoadIUMConfig:NMESchema.value</field>
+				</Panel>
+			</Panel>
+			
+			
+		</Panel>
+		<Panel name="status" title="status" view="ium.toolbox.view.StatusBar" layout="horizontal" grabV="false">
+			<Panel name="host" title="" view="ium.toolbox.view.Label" listenTo="Host" field="@Host.name|: |@Host.username|\@|@Host.hostname|:|@Host.port" />
+		
+		</Panel>
+		
+	</MainPanel>
+	
+</vf>

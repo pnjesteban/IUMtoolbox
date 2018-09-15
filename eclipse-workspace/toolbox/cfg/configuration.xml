@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vf>
+	<Hosts>
+		<Host name="Desarollo" type="DEV" className="ium.tools.config.info.Host">
+			<hostname></hostname>
+			<port></port>
+			<IUMInstance></IUMInstance>
+			<username></username>
+			<password></password>
+			<CollectorPrefix></CollectorPrefix>
+			<home></home>
+		</Host>
+
+		<Host name="Produccion" type="DEV" className="ium.tools.config.info.Host">
+			<hostname></hostname>
+			<port></port>
+			<IUMInstance></IUMInstance>
+			<username></username>
+			<password></password>
+			<CollectorPrefix></CollectorPrefix>
+			<home></home>
+		</Host>
+		
+	</Hosts>
+	
+	<global>
+		<localWork>work/</localWork>
+		<remoteWork>#{Host.home}/.iumExpWork/</remoteWork>
+	</global>
+	
+	<ConfigMap>
+		<Config name="Encapsulator" className="ium.tools.config.info.ConfigMap">
+			<Path>Encapsulator</Path>
+			<RuleClass>com.hp.siu.collector.encapsulator.RecordEncapsulator</RuleClass>
+			<FileRollPath>/RecordFactory/StreamSource/FileRollPolicy</FileRollPath>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		<Config name="Encapsulator" className="ium.tools.config.info.ConfigMap">
+			<Path>Encapsulator</Path>
+			<RuleClass>*</RuleClass>
+			<FileRollPath>/StreamSource/FileRollPolicy</FileRollPath>			
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		
+		
+		<Config name="FileRollPolicy" className="ium.tools.config.info.ConfigMap">
+			<RuleClass>com.hp.siu.collector.encapsulator.PerlRegexFilePolicy</RuleClass>
+			<Path>@Encapsulator::FileRollPath</Path>
+			<Source>.SrcDir</Source>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+			
+		<Config name="FileRollPolicy" className="ium.tools.config.info.ConfigMap">
+			<RuleClass>*</RuleClass>
+			<Path>@Encapsulator::FileRollPath</Path>
+			<Source>.SrcDir</Source>
+			<ClassName>.ClassName</ClassName>
+		</Config>
+		
+	</ConfigMap>
+	
+	<commands>
+		<TextLineCommand name="getConfig" className="ium.tools.console.commands.TextLineCommand">
+			<command>/opt/SIUVOIDEV/bin/saveconfig -f #{1}</command>
+		</TextLineCommand>
+  		<TextLineCommand name="getAdminAgentPid" className="ium.tools.console.commands.TextLineCommand"> 
+ 			<command>ps -C adminagentserver --format pid --no-headers</command>
+ 		</TextLineCommand>
+ 		<TextLineCommand name="getAdminAgentChild" className="ium.tools.console.commands.TextLineCommand">
+ 			<command>ps --ppid `ps -C adminagentserver --format pid --no-headers` --format pid,cmd --no-headers</command>
+ 		</TextLineCommand>
+	</commands>
+	
+	
+	<actions>
+		<Action className="ium.tools.actions.ChainAction" name="LoadRemote" mode="async" scope="private">
+			<Action 
+				className="ium.tools.actions.CommandAction" 
+				name="LoadConfig" 
+				command="getConfig" 
+				param="#{global.remoteWork}all.#{Host.IUMInstance}.config" 
+			/>
+			<Action 
+				className="ium.tools.actions.SCPAction" 
+				name="getFile" 
+				remoteFile="#{global.remoteWork}all.#{Host.IUMInstance}.config" 
+				destination="#{global.localWork}"
+				scope="private"
+			/>
+			<Action 
+				className="ium.tools.actions.LoadLocalFile" 
+				name="IUMConfig" 
+				file="#{global.localWork}all.#{Host.IUMInstance}.config" 
+				mode="nonInteractive"
+			/>
+		</Action>
+		
+		<Action className="ium.tools.actions.ChainAction" name="LoadLocal" mode="sync">
+			<Action 
+				className="ium.tools.actions.LoadLocalFile" 
+				name="IUMConfig" 
+				file="#{global.localWork}all.#{Host.IUMInstance}.config" 
+				mode="nonInteractive"
+			/>
+			
+						
+		</Action>
+		
+		<Action className="ium.tools.actions.ChainAction" name="LoadIUMProccess" mode="sync">			
+			<Action 
+				className="ium.tools.actions.CommandAction" 
+				name="getIUMProccess" 
+				command="getAdminAgentChild"
+			/>
+			<Action 
+				className="ium.tools.actions.FormatAction" 
+				name="IUMProcess"
+				regex="(\d*) (.*) (.*)" 
+				groups="pid|type|collector"
+				input="getIUMProccess"
+			/>
+		</Action>
+		
+		
+	</actions>
+	
+	<Menu>
+		<MenuItem className="ium.tools.config.info.MenuItem" name="File">
+			<MenuItem className="ium.tools.config.info.MenuItem" name="Load Local..." action="ium.tools.actions.LoadLocalFile"/>
+			<MenuItem className="ium.tools.config.info.MenuItem" name="Load " type="cascade" load="Hosts" action="LoadLocal"/>
+			<MenuItem className="ium.tools.config.info.MenuItem" name="Load remote..." type="cascade" load="Hosts" action="LoadRemote"/>
+			<MenuItem className="ium.tools.config.info.MenuItem" name="comandos" type="cascade" load="commands" />
+		</MenuItem>
+		<MenuItem name="Help" className="ium.tools.config.info.MenuItem">
+		</MenuItem>
+	</Menu>
+	
+	<MainPanels>
+	
+		<Panel name="Host" title="Host" className="ium.tools.config.info.Panel" listenTo="IUMConfig">
+			<View>ium.tools.composite.HostView</View>
+		</Panel>
+	
+		<Panel name="Config" title="Config" className="ium.tools.config.info.Panel" listenTo="IUMConfig">
+			<View>ium.tools.composite.ConfigView</View>
+		</Panel>
+		
+		<Panel name="Collectors" title="Collectors" className="ium.tools.config.info.Panel" listenTo="IUMConfig|IUMProcess">
+			<View>ium.tools.composite.CollectorsView</View>
+			<Control className="ium.tools.config.info.Text" name="filter" viewMethod="setFilter" field="collector" />
+			<Control className="ium.tools.config.info.Button" action="LoadIUMProccess" name="checkCollectors" />
+			
+			<Control className="ium.tools.config.info.Label" name="lblClassName" panel="1" field="Link" title="Link"/>
+			<Control className="ium.tools.config.info.Label" name="lblClassName" panel="1" field="ClassName" title="ClassName"/>
+			<Control className="ium.tools.config.info.Label" name="lblClassName" panel="1" field="Encapsulator.ClassName" title="Encapsulator"/>
+			<Control className="ium.tools.config.info.Label" name="lblClassName" panel="1" field="@Encapsulator::FileRollPath.SrcDir" title="Source"/>			
+			<Control className="ium.tools.config.info.Label" name="lblClassName" panel="1" field="@FileRollPolicy::Source" title="Source"/>
+			<Control className="ium.tools.config.info.List" name="ListDataStore" panel="1" field="DataStore.SchemeMap" title="DataStore"/>
+			
+			
+			
+			<Menu>
+				<MenuItem className="ium.tools.config.info.MenuItem" name="start" action=""/>
+				<MenuItem className="ium.tools.config.info.MenuItem" name="stop" action=""/>
+				<MenuItem className="ium.tools.config.info.MenuItem" name="clean" action=""/>		
+			</Menu>
+			
+			
+		</Panel>
+	</MainPanels>
+</vf>
